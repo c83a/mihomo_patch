@@ -1,5 +1,5 @@
 diff --git a/adapter/outboundgroup/loadbalance.go b/adapter/outboundgroup/loadbalance.go
-index c3222b3..4424b44 100644
+index c3222b3..18f5efe 100644
 --- a/adapter/outboundgroup/loadbalance.go
 +++ b/adapter/outboundgroup/loadbalance.go
 @@ -246,6 +246,12 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
@@ -15,15 +15,15 @@ index c3222b3..4424b44 100644
  	case "round-robin":
  		strategyFn = strategyRoundRobin(option.URL)
  	case "sticky-sessions":
-@@ -276,3 +282,34 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
+@@ -276,3 +282,40 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
  		Icon:           option.Icon,
  	}, nil
  }
 +
 +func strategyRoundRobin0(tick int, url string) strategyFn {
-+	var aliveproxies []C.Proxy = make([]C.Proxy)
++	var aliveproxies []C.Proxy = make([]C.Proxy, 2)
 +	lastlen := 0
-+	var idx uint = 0
++	var idx int = 0
 +	idxMutex := sync.Mutex{}
 +	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) (proxy C.Proxy) {
 +		length := len(proxies)
@@ -32,6 +32,9 @@ index c3222b3..4424b44 100644
 +		if length == lastlen && idx%tick != 0 {
 +			proxy = proxies[idx%length]
 +			idx++
++			if idx < 0 {
++				idx = 0
++			}
 +			return proxy
 +		}
 +		lastlen = length
@@ -46,6 +49,9 @@ index c3222b3..4424b44 100644
 +		}
 +		proxy = proxies[idx%length]
 +		idx++
++		if idx < 0 {
++			idx = 0
++		}
 +		return proxy
 +	}
 +
