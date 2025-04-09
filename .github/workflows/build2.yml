@@ -111,9 +111,9 @@ jobs:
           - { goos: linux, goarch: amd64, goamd64: v3, output: amd64-go120, goversion: '1.20' }
 
     steps:
-    uses: actions/checkout@master
-    with:
-      repository: MetaCubeX/mihomo
+      uses: actions/checkout@master
+      with:
+        repository: MetaCubeX/mihomo
     - name: apply patch
       run: |
         #git clone --depth 1 -b Alpha 'https://github.com/MetaCubeX/mihomo'
