@@ -112,7 +112,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-      repository: 'https://github.com/MetaCubeX/mihomo'
+      repository: 'MetaCubeX/mihomo'
     - name: apply patch
       run: |
         url=https://github.com/c83a/mihomo_patch
