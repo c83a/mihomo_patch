@@ -1,58 +1,32 @@
 diff --git a/adapter/outboundgroup/loadbalance.go b/adapter/outboundgroup/loadbalance.go
-index c3222b3..18f5efe 100644
+index c3222b3..509d555 100644
 --- a/adapter/outboundgroup/loadbalance.go
 +++ b/adapter/outboundgroup/loadbalance.go
-@@ -246,6 +246,12 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
+@@ -246,6 +246,8 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
  	switch strategy {
  	case "consistent-hashing":
  		strategyFn = strategyConsistentHashing(option.URL)
 +	case "round-robin0":
-+		if option.TestTimeout > 1024 {
-+			strategyFn = strategyRoundRobin0(option.TestTimeout, option.URL)
-+		} else {
-+			strategyFn = strategyRoundRobin0(0x1000, option.URL)
-+		}
++		strategyFn = strategyRoundRobin0(option.URL)
  	case "round-robin":
  		strategyFn = strategyRoundRobin(option.URL)
  	case "sticky-sessions":
-@@ -276,3 +282,40 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
+@@ -276,3 +278,18 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
  		Icon:           option.Icon,
  	}, nil
  }
 +
-+func strategyRoundRobin0(tick int, url string) strategyFn {
-+	var aliveproxies []C.Proxy = make([]C.Proxy, 2)
-+	lastlen := 0
++func strategyRoundRobin0(url string) strategyFn {
 +	var idx int = 0
 +	idxMutex := sync.Mutex{}
 +	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) (proxy C.Proxy) {
-+		length := len(proxies)
 +		idxMutex.Lock()
-+		defer idxMutex.Unlock()
-+		if length == lastlen && idx%tick != 0 {
-+			proxy = proxies[idx%length]
-+			idx++
-+			if idx < 0 {
-+				idx = 0
-+			}
-+			return proxy
-+		}
-+		lastlen = length
-+		aliveproxies = aliveproxies[:0]
-+		for _, proxy := range proxies {
-+			if proxy.AliveForTestUrl(url) {
-+				aliveproxies = append(aliveproxies, proxy)
-+			}
-+		}
-+		if len(aliveproxies) == 0 {
-+			aliveproxies = proxies
-+		}
-+		proxy = proxies[idx%length]
++		proxy = proxies[idx%len(proxies)]
 +		idx++
 +		if idx < 0 {
 +			idx = 0
 +		}
++		idxMutex.Unlock()
 +		return proxy
 +	}
-+
 +}
