@@ -1,9 +1,9 @@
 name: Build
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Tag version to release"
+#    inputs:
+#      version:
+#        description: "Tag version to release"
 #        required: true
   push:
     paths-ignore:
@@ -207,7 +207,7 @@ jobs:
       shell: bash
 
     - name: Set variables
-      if: ${{ github.event_name != 'workflow_dispatch' && github.ref_name == 'Alpha' }}
+      #if: ${{ github.event_name != 'workflow_dispatch' && github.ref_name == 'Alpha' }}
       run: echo "VERSION=alpha-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
       shell: bash
 
