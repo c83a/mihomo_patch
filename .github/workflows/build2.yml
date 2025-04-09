@@ -111,6 +111,7 @@ jobs:
           #- { goos: linux, goarch: amd64, goamd64: v3, output: amd64-go120, goversion: '1.20' }
 
           - { goos: windows, goarch: amd64, goamd64: v1, output: amd64-compatible }
+          - { goos: linux, goarch: amd64, goamd64: v1, output: amd64-compatible }
           - { goos: linux, goarch: arm64, output: arm64 }
           - { goos: linux, goarch: mipsle, gomips: softfloat, output: mipsle-softfloat }
           - { goos: linux, goarch: arm, goarm: '7', output: armv7 }
@@ -472,7 +473,7 @@ jobs:
           body_path: release.md
 
   Docker:
-    if: ${{ !startsWith(github.event_name, 'pull_request') }}
+    if: ${{ 1 == 0  }}
     permissions: write-all
     needs: [build]
     runs-on: ubuntu-latest
