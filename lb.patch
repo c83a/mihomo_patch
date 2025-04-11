@@ -1,5 +1,5 @@
 diff --git a/adapter/outboundgroup/loadbalance.go b/adapter/outboundgroup/loadbalance.go
-index c3222b3..509d555 100644
+index c3222b3..2c7265a 100644
 --- a/adapter/outboundgroup/loadbalance.go
 +++ b/adapter/outboundgroup/loadbalance.go
 @@ -246,6 +246,8 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
@@ -17,13 +17,13 @@ index c3222b3..509d555 100644
  }
 +
 +func strategyRoundRobin0(url string) strategyFn {
-+	var idx int = 0
++	idx := 0
 +	idxMutex := sync.Mutex{}
 +	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) (proxy C.Proxy) {
 +		idxMutex.Lock()
 +		proxy = proxies[idx%len(proxies)]
 +		idx++
-+		if idx < 0 {
++		if idx > 0xefef {
 +			idx = 0
 +		}
 +		idxMutex.Unlock()
