@@ -1,5 +1,5 @@
 diff --git a/adapter/outboundgroup/loadbalance.go b/adapter/outboundgroup/loadbalance.go
-index c3222b3..2acaea4 100644
+index c3222b3..37ea459 100644
 --- a/adapter/outboundgroup/loadbalance.go
 +++ b/adapter/outboundgroup/loadbalance.go
 @@ -246,6 +246,8 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
@@ -11,7 +11,7 @@ index c3222b3..2acaea4 100644
  	case "round-robin":
  		strategyFn = strategyRoundRobin(option.URL)
  	case "sticky-sessions":
-@@ -276,3 +278,15 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
+@@ -276,3 +278,16 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
  		Icon:           option.Icon,
  	}, nil
  }
@@ -20,8 +20,9 @@ index c3222b3..2acaea4 100644
 +	idx := 0
 +	idxMutex := sync.Mutex{}
 +	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) (proxy C.Proxy) {
++		plen := len(proxies)
 +		idxMutex.Lock()
-+		idx = (idx + 1) % len(proxies)
++		idx = (idx + 1) % plen
 +		idxMutex.Unlock()
 +		proxy = proxies[idx]
 +		return proxy
