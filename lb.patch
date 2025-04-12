@@ -1,3 +1,62 @@
+diff --git a/adapter/outboundgroup/groupbase.go b/adapter/outboundgroup/groupbase.go
+index f891016..f380141 100644
+--- a/adapter/outboundgroup/groupbase.go
++++ b/adapter/outboundgroup/groupbase.go
+@@ -106,7 +106,7 @@ func (gb *GroupBase) Touch() {
+ 	}
+ }
+ 
+-func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
++func (gb *GroupBase) _GetProxies(touch bool) []C.Proxy {
+ 	providerVersions := make([]uint32, len(gb.providers))
+ 	for i, pd := range gb.providers {
+ 		if touch { // touch first
+@@ -312,3 +312,45 @@ func (gb *GroupBase) onDialSuccess() {
+ 		gb.failedTimes = 0
+ 	}
+ }
++
++type follow interface {
++	AddFollower(chan<- struct{})
++}
++
++func (gb *GroupBase) GetProxies(touch bool) (proxies []C.Proxy) {
++	proxies = gb.providerProxies
++	if proxies != nil {
++		return
++	}
++	gb.failedTestMux.Lock()
++	defer gb.failedTestMux.Unlock()
++	proxies = gb.providerProxies
++	if proxies != nil {
++		return
++	}
++	chDirtyCache := make(chan struct{}, 1)
++	chDone := tunnel.World
++	tf := false
++	for _, pd := range gb.providers {
++		if pf, ok := pd.(follow); ok {
++			pf.AddFollower(chDirtyCache)
++			tf = true
++		}
++	}
++	proxies = gb._GetProxies(false)
++	gb.providerProxies = proxies
++	updater := func() {
++		for {
++			select {
++			case <-chDirtyCache:
++				gb.providerProxies = gb._GetProxies(false)
++			case <-chDone:
++				return
++			}
++		}
++	}
++	if tf {
++		go updater()
++	}
++	return
++}
 diff --git a/adapter/outboundgroup/loadbalance.go b/adapter/outboundgroup/loadbalance.go
 index c3222b3..37ea459 100644
 --- a/adapter/outboundgroup/loadbalance.go
@@ -28,3 +87,68 @@ index c3222b3..37ea459 100644
 +		return proxy
 +	}
 +}
+diff --git a/adapter/provider/provider.go b/adapter/provider/provider.go
+index 3dccefe..c051d24 100644
+--- a/adapter/provider/provider.go
++++ b/adapter/provider/provider.go
+@@ -9,6 +9,7 @@ import (
+ 	"runtime"
+ 	"strings"
+ 	"time"
++	"sync"
+ 
+ 	"github.com/metacubex/mihomo/adapter"
+ 	"github.com/metacubex/mihomo/common/convert"
+@@ -108,6 +109,8 @@ type proxySetProvider struct {
+ 	baseProvider
+ 	*resource.Fetcher[[]C.Proxy]
+ 	subscriptionInfo *SubscriptionInfo
++	mutex sync.Mutex
++	follower map[chan <- struct{}]struct{}
+ }
+ 
+ func (pp *proxySetProvider) MarshalJSON() ([]byte, error) {
+@@ -461,3 +464,28 @@ func NewProxiesParser(filter string, excludeFilter string, excludeType string, d
+ 		return proxies, nil
+ 	}, nil
+ }
++func (pp *proxySetProvider) AddFollower(c chan<- struct{})  {
++	pp.mutex.Lock()
++	defer pp.mutex.Unlock()
++	if len(pp.follower) == 0{
++		pp.follower = make(map[chan <- struct{}]struct{})
++	}
++		pp.follower[c] = struct{}{}
++}
++func (pp *proxySetProvider) UpdateFollower()  {
++	pp.mutex.Lock()
++	defer pp.mutex.Unlock()
++	for c := range pp.follower{
++		select{
++			case c <- struct{}{}:
++				// pass
++			default:
++				// pass
++		}
++	}
++}
++
++func (pp *proxySetProvider) setProxies(proxies []C.Proxy) {
++	pp.baseProvider.setProxies(proxies)
++	pp.UpdateFollower()
++}
+diff --git a/tunnel/tunnel.go b/tunnel/tunnel.go
+index b950793..5bc5f31 100644
+--- a/tunnel/tunnel.go
++++ b/tunnel/tunnel.go
+@@ -125,7 +125,10 @@ func (t tunnel) RuleUpdateCallback() *utils.Callback[provider.RuleProvider] {
+ 	return ruleUpdateCallback
+ }
+ 
++var World = make(chan struct{})
+ func OnSuspend() {
++	close(World)
++	World = make(chan struct{})
+ 	status.Store(Suspend)
+ }
+ 
