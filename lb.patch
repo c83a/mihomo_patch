@@ -1,5 +1,5 @@
 diff --git a/adapter/outboundgroup/groupbase.go b/adapter/outboundgroup/groupbase.go
-index f891016..f380141 100644
+index f891016..3470c7d 100644
 --- a/adapter/outboundgroup/groupbase.go
 +++ b/adapter/outboundgroup/groupbase.go
 @@ -106,7 +106,7 @@ func (gb *GroupBase) Touch() {
@@ -11,14 +11,10 @@ index f891016..f380141 100644
  	providerVersions := make([]uint32, len(gb.providers))
  	for i, pd := range gb.providers {
  		if touch { // touch first
-@@ -312,3 +312,45 @@ func (gb *GroupBase) onDialSuccess() {
+@@ -312,3 +312,44 @@ func (gb *GroupBase) onDialSuccess() {
  		gb.failedTimes = 0
  	}
  }
-+
-+type follow interface {
-+	AddFollower(chan<- struct{})
-+}
 +
 +func (gb *GroupBase) GetProxies(touch bool) (proxies []C.Proxy) {
 +	proxies = gb.providerProxies
@@ -34,6 +30,9 @@ index f891016..f380141 100644
 +	chDirtyCache := make(chan struct{}, 1)
 +	chDone := tunnel.World
 +	tf := false
++	type follow interface {
++		AddFollower(chan<- struct{})
++	}
 +	for _, pd := range gb.providers {
 +		if pf, ok := pd.(follow); ok {
 +			pf.AddFollower(chDirtyCache)
@@ -58,10 +57,18 @@ index f891016..f380141 100644
 +	return
 +}
 diff --git a/adapter/outboundgroup/loadbalance.go b/adapter/outboundgroup/loadbalance.go
-index c3222b3..37ea459 100644
+index c3222b3..96a8272 100644
 --- a/adapter/outboundgroup/loadbalance.go
 +++ b/adapter/outboundgroup/loadbalance.go
-@@ -246,6 +246,8 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
+@@ -7,6 +7,7 @@ import (
+ 	"fmt"
+ 	"net"
+ 	"sync"
++	"sync/atomic"
+ 	"time"
+ 
+ 	"github.com/metacubex/mihomo/adapter/outbound"
+@@ -246,6 +247,8 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
  	switch strategy {
  	case "consistent-hashing":
  		strategyFn = strategyConsistentHashing(option.URL)
@@ -70,20 +77,16 @@ index c3222b3..37ea459 100644
  	case "round-robin":
  		strategyFn = strategyRoundRobin(option.URL)
  	case "sticky-sessions":
-@@ -276,3 +278,16 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
+@@ -276,3 +279,12 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
  		Icon:           option.Icon,
  	}, nil
  }
 +
 +func strategyRoundRobin0(url string) strategyFn {
-+	idx := 0
-+	idxMutex := sync.Mutex{}
++	var idx atomic.Uint32
 +	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) (proxy C.Proxy) {
-+		plen := len(proxies)
-+		idxMutex.Lock()
-+		idx = (idx + 1) % plen
-+		idxMutex.Unlock()
-+		proxy = proxies[idx]
++		i := (&idx).Add(1) % (uint32)(len(proxies))
++		proxy = proxies[i]
 +		return proxy
 +	}
 +}
