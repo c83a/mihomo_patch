@@ -271,7 +271,7 @@ jobs:
         fi
 
     - name: Create DEB package
-      if: ${{ matrix.jobs.goos == 'linux' && !contains(matrix.jobs.goarch, 'mips') }}
+      if: ${{ 0 == 1 && matrix.jobs.goos == 'linux' && !contains(matrix.jobs.goarch, 'mips') }}
       run: |
         sudo apt-get install dpkg
         if [ "${{matrix.jobs.abi}}" = "1" ]; then
@@ -320,7 +320,7 @@ jobs:
         dpkg-deb -Z gzip --build mihomo-${{matrix.jobs.goos}}-${{matrix.jobs.output}}-${VERSION}
 
     - name: Convert DEB to RPM
-      if: ${{ matrix.jobs.goos == 'linux' && !contains(matrix.jobs.goarch, 'mips') }}
+      if: ${{ 0 == 1 && matrix.jobs.goos == 'linux' && !contains(matrix.jobs.goarch, 'mips') }}
       run: |
         sudo apt-get install -y alien
         alien --to-rpm --scripts mihomo-${{matrix.jobs.goos}}-${{matrix.jobs.output}}-${VERSION}.deb
@@ -473,7 +473,7 @@ jobs:
           body_path: release.md
 
   Docker:
-    if: ${{ 1 == 0  }}
+    if: ${{ 0 == 1  }}
     permissions: write-all
     needs: [build]
     runs-on: ubuntu-latest
