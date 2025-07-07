@@ -1,4 +1,4 @@
-sed -n 's/func (gb \*GroupBase) GetProxies(touch bool) \[\]C.Proxy {/func (gb *GroupBase) _GetProxies(touch bool) []C.Proxy {/p' adapter/outboundgroup/groupbase.go
+sed -i 's/func (gb \*GroupBase) GetProxies(touch bool) \[\]C.Proxy {/func (gb *GroupBase) _GetProxies(touch bool) []C.Proxy {/' adapter/outboundgroup/groupbase.go
 
 
 
