@@ -127,7 +127,7 @@ jobs:
         git clone --depth 1 "$url"
         sh mihomo_patch/p.sh
         #git apply mihomo_patch/*.patch
-	git diff
+        git diff
         
     - name: Set up Go
       if: ${{ matrix.jobs.goversion == '' && matrix.jobs.abi != '1' }}
