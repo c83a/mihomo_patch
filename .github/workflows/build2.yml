@@ -125,7 +125,8 @@ jobs:
       run: |
         url=https://github.com/c83a/mihomo_patch
         git clone --depth 1 "$url"
-        git apply mihomo_patch/*.patch
+        sh mihomo_patch/p.sh
+        #git apply mihomo_patch/*.patch
         
     - name: Set up Go
       if: ${{ matrix.jobs.goversion == '' && matrix.jobs.abi != '1' }}
