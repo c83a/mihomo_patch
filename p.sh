@@ -99,8 +99,7 @@ sed -i  '/func OnSuspend() {/{
 i var World = make(chan struct{})
 
 a \	close(World)\
-\	World = make(chan struct{})\
-\ 	status.Store(Suspend)
+\	World = make(chan struct{})
 
 }
 ' tunnel/tunnel.go
