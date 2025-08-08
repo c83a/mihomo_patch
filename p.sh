@@ -46,7 +46,7 @@ func (gb *GroupBase) GetProxies(touch bool) (proxies []C.Proxy) {\
 }' adapter/outboundgroup/groupbase.go
 echo  adapter/outboundgroup/groupbase.go
 sed -i '/	"time"/a\	"sync/atomic"'  adapter/outboundgroup/loadbalance.go
-sed -i '/case "consistent-hashing":/a\
+sed -i '/case "consistent-hashing":/i\
 \ncase "round-robin0":\
 \tstrategyFn = strategyRoundRobin0(option.URL)' adapter/outboundgroup/loadbalance.go
 echo adapter/outboundgroup/loadbalance.go
