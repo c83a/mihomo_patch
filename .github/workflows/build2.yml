@@ -114,7 +114,7 @@ jobs:
           - { goos: linux, goarch: amd64, goamd64: v1, output: amd64-compatible }
           - { goos: linux, goarch: arm64, output: arm64 }
           - { goos: linux, goarch: mipsle, gomips: softfloat, output: mipsle-softfloat }
-          - { goos: linux, goarch: arm, goarm: '7', output: armv7 }
+          #- { goos: linux, goarch: arm, goarm: '7', output: armv7 }
 
     steps:
     - uses: actions/checkout@v4
@@ -133,7 +133,7 @@ jobs:
       if: ${{ matrix.jobs.goversion == '' && matrix.jobs.abi != '1' }}
       uses: actions/setup-go@v5
       with:
-        go-version: '1.24'
+        go-version: '1.25'
 
     - name: Set up Go
       if: ${{ matrix.jobs.goversion != '' && matrix.jobs.abi != '1' }}
