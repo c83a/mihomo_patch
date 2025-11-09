@@ -1,20 +1,12 @@
 diff --git a/adapter/outboundgroup/groupbase.go b/adapter/outboundgroup/groupbase.go
-index f891016..3470c7d 100644
+index 9e705677..53b92242 100644
 --- a/adapter/outboundgroup/groupbase.go
 +++ b/adapter/outboundgroup/groupbase.go
-@@ -106,7 +106,7 @@ func (gb *GroupBase) Touch() {
+@@ -99,7 +99,49 @@ func (gb *GroupBase) Touch() {
  	}
  }
  
 -func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
-+func (gb *GroupBase) _GetProxies(touch bool) []C.Proxy {
- 	providerVersions := make([]uint32, len(gb.providers))
- 	for i, pd := range gb.providers {
- 		if touch { // touch first
-@@ -312,3 +312,44 @@ func (gb *GroupBase) onDialSuccess() {
- 		gb.failedTimes = 0
- 	}
- }
 +
 +func (gb *GroupBase) GetProxies(touch bool) (proxies []C.Proxy) {
 +	proxies = gb.providerProxies
@@ -52,349 +44,31 @@ index f891016..3470c7d 100644
 +		}
 +	}
 +	if tf {
-+		go updater()
++	
++go updater()
 +	}
 +	return
 +}
-diff --git a/adapter/outboundgroup/loadbalance.go b/adapter/outboundgroup/loadbalance.go
-index c3222b3..96a8272 100644
---- a/adapter/outboundgroup/loadbalance.go
-+++ b/adapter/outboundgroup/loadbalance.go
-@@ -7,6 +7,7 @@ import (
- 	"fmt"
- 	"net"
- 	"sync"
-+	"sync/atomic"
- 	"time"
- 
- 	"github.com/metacubex/mihomo/adapter/outbound"
-@@ -246,6 +247,8 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
- 	switch strategy {
- 	case "consistent-hashing":
- 		strategyFn = strategyConsistentHashing(option.URL)
-+	case "round-robin0":
-+		strategyFn = strategyRoundRobin0(option.URL)
- 	case "round-robin":
- 		strategyFn = strategyRoundRobin(option.URL)
- 	case "sticky-sessions":
-@@ -276,3 +279,12 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
- 		Icon:           option.Icon,
- 	}, nil
- }
-+
-+func strategyRoundRobin0(url string) strategyFn {
-+	var idx atomic.Uint32
-+	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) (proxy C.Proxy) {
-+		i := (&idx).Add(1) % (uint32)(len(proxies))
-+		proxy = proxies[i]
-+		return proxy
-+	}
-+}
-diff --git a/adapter/provider/provider.go b/adapter/provider/provider.go
-index 3dccefe..c051d24 100644
---- a/adapter/provider/provider.go
-+++ b/adapter/provider/provider.go
-@@ -9,6 +9,7 @@ import (
- 	"runtime"
- 	"strings"
- 	"time"
-+	"sync"
- 
- 	"github.com/metacubex/mihomo/adapter"
- 	"github.com/metacubex/mihomo/common/convert"
-@@ -108,6 +109,8 @@ type proxySetProvider struct {
- 	baseProvider
- 	*resource.Fetcher[[]C.Proxy]
- 	subscriptionInfo *SubscriptionInfo
-+	mutex sync.Mutex
-+	follower map[chan <- struct{}]struct{}
- }
- 
- func (pp *proxySetProvider) MarshalJSON() ([]byte, error) {
-@@ -461,3 +464,28 @@ func NewProxiesParser(filter string, excludeFilter string, excludeType string, d
- 		return proxies, nil
- 	}, nil
- }
-+func (pp *proxySetProvider) AddFollower(c chan<- struct{})  {
-+	pp.mutex.Lock()
-+	defer pp.mutex.Unlock()
-+	if len(pp.follower) == 0{
-+		pp.follower = make(map[chan <- struct{}]struct{})
-+	}
-+		pp.follower[c] = struct{}{}
-+}
-+func (pp *proxySetProvider) UpdateFollower()  {
-+	pp.mutex.Lock()
-+	defer pp.mutex.Unlock()
-+	for c := range pp.follower{
-+		select{
-+			case c <- struct{}{}:
-+				// pass
-+			default:
-+				// pass
-+		}
-+	}
-+}
-+
-+func (pp *proxySetProvider) setProxies(proxies []C.Proxy) {
-+	pp.baseProvider.setProxies(proxies)
-+	pp.UpdateFollower()
-+}
-diff --git a/tunnel/tunnel.go b/tunnel/tunnel.go
-index b950793..5bc5f31 100644
---- a/tunnel/tunnel.go
-+++ b/tunnel/tunnel.go
-@@ -125,7 +125,10 @@ func (t tunnel) RuleUpdateCallback() *utils.Callback[provider.RuleProvider] {
- 	return ruleUpdateCallback
- }
- 
-+var World = make(chan struct{})
- func OnSuspend() {
-+	close(World)
-+	World = make(chan struct{})
- 	status.Store(Suspend)
- }
- 
-diff --git a/adapter/outboundgroup/groupbase.go b/adapter/outboundgroup/groupbase.go
-index f891016..3470c7d 100644
---- a/adapter/outboundgroup/groupbase.go
-+++ b/adapter/outboundgroup/groupbase.go
-@@ -106,7 +106,7 @@ func (gb *GroupBase) Touch() {
- 	}
- }
- 
--func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
 +func (gb *GroupBase) _GetProxies(touch bool) []C.Proxy {
  	providerVersions := make([]uint32, len(gb.providers))
  	for i, pd := range gb.providers {
  		if touch { // touch first
-@@ -312,3 +312,44 @@ func (gb *GroupBase) onDialSuccess() {
- 		gb.failedTimes = 0
- 	}
- }
-+
-+func (gb *GroupBase) GetProxies(touch bool) (proxies []C.Proxy) {
-+	proxies = gb.providerProxies
-+	if proxies != nil {
-+		return
-+	}
-+	gb.failedTestMux.Lock()
-+	defer gb.failedTestMux.Unlock()
-+	proxies = gb.providerProxies
-+	if proxies != nil {
-+		return
-+	}
-+	chDirtyCache := make(chan struct{}, 1)
-+	chDone := tunnel.World
-+	tf := false
-+	type follow interface {
-+		AddFollower(chan<- struct{})
-+	}
-+	for _, pd := range gb.providers {
-+		if pf, ok := pd.(follow); ok {
-+			pf.AddFollower(chDirtyCache)
-+			tf = true
-+		}
-+	}
-+	proxies = gb._GetProxies(false)
-+	gb.providerProxies = proxies
-+	updater := func() {
-+		for {
-+			select {
-+			case <-chDirtyCache:
-+				gb.providerProxies = gb._GetProxies(false)
-+			case <-chDone:
-+				return
-+			}
-+		}
-+	}
-+	if tf {
-+		go updater()
-+	}
-+	return
-+}
 diff --git a/adapter/outboundgroup/loadbalance.go b/adapter/outboundgroup/loadbalance.go
-index c3222b3..e78c52b 100644
+index dff9b5ed..d5d59adc 100644
 --- a/adapter/outboundgroup/loadbalance.go
 +++ b/adapter/outboundgroup/loadbalance.go
-@@ -7,6 +7,7 @@ import (
- 	"fmt"
+@@ -8,6 +8,7 @@ import (
  	"net"
  	"sync"
+ 	"time"
 +	"sync/atomic"
- 	"time"
  
- 	"github.com/metacubex/mihomo/adapter/outbound"
-@@ -246,6 +247,8 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
- 	switch strategy {
- 	case "consistent-hashing":
- 		strategyFn = strategyConsistentHashing(option.URL)
-+	case "round-robin0":
-+		strategyFn = strategyRoundRobin0(option.URL)
- 	case "round-robin":
- 		strategyFn = strategyRoundRobin(option.URL)
- 	case "sticky-sessions":
-@@ -276,3 +279,12 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
- 		Icon:           option.Icon,
- 	}, nil
- }
-+
-+func strategyRoundRobin0(url string) strategyFn {
-+	idx := &atomic.Uint32{}
-+	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) (proxy C.Proxy) {
-+		i := idx.Add(1) % (uint32)(len(proxies))
-+		proxy = proxies[i]
-+		return proxy
-+	}
-+}
-diff --git a/adapter/provider/provider.go b/adapter/provider/provider.go
-index 3dccefe..c051d24 100644
---- a/adapter/provider/provider.go
-+++ b/adapter/provider/provider.go
-@@ -9,6 +9,7 @@ import (
- 	"runtime"
- 	"strings"
- 	"time"
-+	"sync"
- 
- 	"github.com/metacubex/mihomo/adapter"
- 	"github.com/metacubex/mihomo/common/convert"
-@@ -108,6 +109,8 @@ type proxySetProvider struct {
- 	baseProvider
- 	*resource.Fetcher[[]C.Proxy]
- 	subscriptionInfo *SubscriptionInfo
-+	mutex sync.Mutex
-+	follower map[chan <- struct{}]struct{}
- }
- 
- func (pp *proxySetProvider) MarshalJSON() ([]byte, error) {
-@@ -461,3 +464,28 @@ func NewProxiesParser(filter string, excludeFilter string, excludeType string, d
- 		return proxies, nil
- 	}, nil
- }
-+func (pp *proxySetProvider) AddFollower(c chan<- struct{})  {
-+	pp.mutex.Lock()
-+	defer pp.mutex.Unlock()
-+	if len(pp.follower) == 0{
-+		pp.follower = make(map[chan <- struct{}]struct{})
-+	}
-+		pp.follower[c] = struct{}{}
-+}
-+func (pp *proxySetProvider) UpdateFollower()  {
-+	pp.mutex.Lock()
-+	defer pp.mutex.Unlock()
-+	for c := range pp.follower{
-+		select{
-+			case c <- struct{}{}:
-+				// pass
-+			default:
-+				// pass
-+		}
-+	}
-+}
-+
-+func (pp *proxySetProvider) setProxies(proxies []C.Proxy) {
-+	pp.baseProvider.setProxies(proxies)
-+	pp.UpdateFollower()
-+}
-diff --git a/tunnel/tunnel.go b/tunnel/tunnel.go
-index b950793..5bc5f31 100644
---- a/tunnel/tunnel.go
-+++ b/tunnel/tunnel.go
-@@ -125,7 +125,10 @@ func (t tunnel) RuleUpdateCallback() *utils.Callback[provider.RuleProvider] {
- 	return ruleUpdateCallback
- }
- 
-+var World = make(chan struct{})
- func OnSuspend() {
-+	close(World)
-+	World = make(chan struct{})
- 	status.Store(Suspend)
- }
- 
-diff --git a/adapter/outboundgroup/groupbase.go b/adapter/outboundgroup/groupbase.go
-index f891016..3470c7d 100644
---- a/adapter/outboundgroup/groupbase.go
-+++ b/adapter/outboundgroup/groupbase.go
-@@ -106,7 +106,7 @@ func (gb *GroupBase) Touch() {
+ 	"github.com/metacubex/mihomo/common/callback"
+ 	"github.com/metacubex/mihomo/common/lru"
+@@ -160,6 +161,14 @@ func strategyRoundRobin(url string) strategyFn {
  	}
  }
  
--func (gb *GroupBase) GetProxies(touch bool) []C.Proxy {
-+func (gb *GroupBase) _GetProxies(touch bool) []C.Proxy {
- 	providerVersions := make([]uint32, len(gb.providers))
- 	for i, pd := range gb.providers {
- 		if touch { // touch first
-@@ -312,3 +312,44 @@ func (gb *GroupBase) onDialSuccess() {
- 		gb.failedTimes = 0
- 	}
- }
-+
-+func (gb *GroupBase) GetProxies(touch bool) (proxies []C.Proxy) {
-+	proxies = gb.providerProxies
-+	if proxies != nil {
-+		return
-+	}
-+	gb.failedTestMux.Lock()
-+	defer gb.failedTestMux.Unlock()
-+	proxies = gb.providerProxies
-+	if proxies != nil {
-+		return
-+	}
-+	chDirtyCache := make(chan struct{}, 1)
-+	chDone := tunnel.World
-+	tf := false
-+	type follow interface {
-+		AddFollower(chan<- struct{})
-+	}
-+	for _, pd := range gb.providers {
-+		if pf, ok := pd.(follow); ok {
-+			pf.AddFollower(chDirtyCache)
-+			tf = true
-+		}
-+	}
-+	proxies = gb._GetProxies(false)
-+	gb.providerProxies = proxies
-+	updater := func() {
-+		for {
-+			select {
-+			case <-chDirtyCache:
-+				gb.providerProxies = gb._GetProxies(false)
-+			case <-chDone:
-+				return
-+			}
-+		}
-+	}
-+	if tf {
-+		go updater()
-+	}
-+	return
-+}
-diff --git a/adapter/outboundgroup/loadbalance.go b/adapter/outboundgroup/loadbalance.go
-index c3222b3..2cb9fe3 100644
---- a/adapter/outboundgroup/loadbalance.go
-+++ b/adapter/outboundgroup/loadbalance.go
-@@ -7,6 +7,7 @@ import (
- 	"fmt"
- 	"net"
- 	"sync"
-+	"sync/atomic"
- 	"time"
- 
- 	"github.com/metacubex/mihomo/adapter/outbound"
-@@ -246,6 +247,8 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
- 	switch strategy {
- 	case "consistent-hashing":
- 		strategyFn = strategyConsistentHashing(option.URL)
-+	case "round-robin0":
-+		strategyFn = strategyRoundRobin0(option.URL)
- 	case "round-robin":
- 		strategyFn = strategyRoundRobin(option.URL)
- 	case "sticky-sessions":
-@@ -276,3 +279,11 @@ func NewLoadBalance(option *GroupCommonOption, providers []provider.ProxyProvide
- 		Icon:           option.Icon,
- 	}, nil
- }
 +
 +func strategyRoundRobin0(url string) strategyFn {
 +	idx := &atomic.Uint32{}
@@ -403,8 +77,21 @@ index c3222b3..2cb9fe3 100644
 +		return proxy
 +	}
 +}
+ func strategyConsistentHashing(url string) strategyFn {
+ 	maxRetry := 5
+ 	return func(proxies []C.Proxy, metadata *C.Metadata, touch bool) C.Proxy {
+@@ -242,6 +251,9 @@ func (lb *LoadBalance) MarshalJSON() ([]byte, error) {
+ func NewLoadBalance(option *GroupCommonOption, providers []P.ProxyProvider, strategy string) (lb *LoadBalance, err error) {
+ 	var strategyFn strategyFn
+ 	switch strategy {
++
++case "round-robin0":
++	strategyFn = strategyRoundRobin0(option.URL)
+ 	case "consistent-hashing":
+ 		strategyFn = strategyConsistentHashing(option.URL)
+ 	case "round-robin":
 diff --git a/adapter/provider/provider.go b/adapter/provider/provider.go
-index 3dccefe..c051d24 100644
+index e5d3b8ac..dfe1206d 100644
 --- a/adapter/provider/provider.go
 +++ b/adapter/provider/provider.go
 @@ -9,6 +9,7 @@ import (
@@ -415,49 +102,73 @@ index 3dccefe..c051d24 100644
  
  	"github.com/metacubex/mihomo/adapter"
  	"github.com/metacubex/mihomo/common/convert"
-@@ -108,6 +109,8 @@ type proxySetProvider struct {
+@@ -112,11 +113,38 @@ type ProxySetProvider struct {
+ }
+ 
+ type proxySetProvider struct {
++	mutex    sync.Mutex
++	follower map[chan <- struct{}]struct{}
  	baseProvider
  	*resource.Fetcher[[]C.Proxy]
  	subscriptionInfo *SubscriptionInfo
-+	mutex sync.Mutex
-+	follower map[chan <- struct{}]struct{}
  }
  
- func (pp *proxySetProvider) MarshalJSON() ([]byte, error) {
-@@ -461,3 +464,28 @@ func NewProxiesParser(filter string, excludeFilter string, excludeType string, d
- 		return proxies, nil
- 	}, nil
- }
++
 +func (pp *proxySetProvider) AddFollower(c chan<- struct{})  {
 +	pp.mutex.Lock()
 +	defer pp.mutex.Unlock()
-+	if len(pp.follower) == 0{
++	if len(pp.follower) == 0 {
 +		pp.follower = make(map[chan <- struct{}]struct{})
 +	}
-+		pp.follower[c] = struct{}{}
++	pp.follower[c] = struct{}{}
 +}
 +func (pp *proxySetProvider) UpdateFollower()  {
 +	pp.mutex.Lock()
 +	defer pp.mutex.Unlock()
-+	for c := range pp.follower{
-+		select{
++	for c := range pp.follower {
++		select {
 +			case c <- struct{}{}:
 +				// pass
 +			default:
 +				// pass
-+		}
++			}
 +	}
 +}
-+
 +func (pp *proxySetProvider) setProxies(proxies []C.Proxy) {
 +	pp.baseProvider.setProxies(proxies)
 +	pp.UpdateFollower()
 +}
+ func (pp *proxySetProvider) MarshalJSON() ([]byte, error) {
+ 	return json.Marshal(providerForApi{
+ 		Name:             pp.Name(),
+diff --git a/component/dialer/dialer.go b/component/dialer/dialer.go
+index d490dca3..461e44d6 100644
+--- a/component/dialer/dialer.go
++++ b/component/dialer/dialer.go
+@@ -11,6 +11,8 @@ import (
+ 	"sync"
+ 	"syscall"
+ 	"time"
++	"math/rand"
++
+ 
+ 	"github.com/metacubex/mihomo/component/keepalive"
+ 	"github.com/metacubex/mihomo/component/resolver"
+@@ -394,6 +396,9 @@ func parseAddr(ctx context.Context, network, address string, preferResolver reso
+ 			ips[i] = ip.Unmap()
+ 		}
+ 	}
++	j := rand.Intn(len(ips))
++	ips[0], ips[j] = ips[j], ips[0]
++
+ 	return ips, port, nil
+ }
+ 
 diff --git a/tunnel/tunnel.go b/tunnel/tunnel.go
-index b950793..5bc5f31 100644
+index fc901eb3..3ab1d8df 100644
 --- a/tunnel/tunnel.go
 +++ b/tunnel/tunnel.go
-@@ -125,7 +125,10 @@ func (t tunnel) RuleUpdateCallback() *utils.Callback[provider.RuleProvider] {
+@@ -124,7 +124,10 @@ func (t tunnel) RuleUpdateCallback() *utils.Callback[P.RuleProvider] {
  	return ruleUpdateCallback
  }
  
