@@ -142,7 +142,7 @@ index e5d3b8ac..dfe1206d 100644
  	return json.Marshal(providerForApi{
  		Name:             pp.Name(),
 diff --git a/component/dialer/dialer.go b/component/dialer/dialer.go
-index d490dca3..f97c0168 100644
+index d490dca3..79752250 100644
 --- a/component/dialer/dialer.go
 +++ b/component/dialer/dialer.go
 @@ -11,6 +11,8 @@ import (
@@ -154,11 +154,12 @@ index d490dca3..f97c0168 100644
  
  	"github.com/metacubex/mihomo/component/keepalive"
  	"github.com/metacubex/mihomo/component/resolver"
-@@ -394,6 +396,9 @@ func parseAddr(ctx context.Context, network, address string, preferResolver reso
+@@ -394,6 +396,10 @@ func parseAddr(ctx context.Context, network, address string, preferResolver reso
  			ips[i] = ip.Unmap()
  		}
  	}
-+	if j := rand.Intn(len(ips));j > 1{
++	if l:= len(ips);l > 1{
++	j := rand.Intn(l)
 +	ips[0], ips[j] = ips[j], ips[0]  }
 +
  	return ips, port, nil
