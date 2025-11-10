@@ -142,7 +142,7 @@ index e5d3b8ac..dfe1206d 100644
  	return json.Marshal(providerForApi{
  		Name:             pp.Name(),
 diff --git a/component/dialer/dialer.go b/component/dialer/dialer.go
-index d490dca3..461e44d6 100644
+index d490dca3..f97c0168 100644
 --- a/component/dialer/dialer.go
 +++ b/component/dialer/dialer.go
 @@ -11,6 +11,8 @@ import (
@@ -158,8 +158,8 @@ index d490dca3..461e44d6 100644
  			ips[i] = ip.Unmap()
  		}
  	}
-+	j := rand.Intn(len(ips))
-+	ips[0], ips[j] = ips[j], ips[0]
++	if j := rand.Intn(len(ips));j > 1{
++	ips[0], ips[j] = ips[j], ips[0]  }
 +
  	return ips, port, nil
  }

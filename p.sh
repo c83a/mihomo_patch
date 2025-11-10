@@ -109,7 +109,7 @@ sed -i '/\t"time"/a\
 \t"math/rand"\
 '  component/dialer/dialer.go
 sed -i '/\treturn ips, port, nil/i\
-	j := rand.Intn(len(ips))\
-	ips[0], ips[j] = ips[j], ips[0]\
+	if j := rand.Intn(len(ips));j > 1{\
+	ips[0], ips[j] = ips[j], ips[0]  }\
 ' component/dialer/dialer.go
 echo component/dialer/dialer.go
