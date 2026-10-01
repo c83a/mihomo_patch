@@ -1,0 +1,6 @@
+		if w.runCtx.Err() == nil {
+			// outer context cancelled, don't restart
+			if w.h2Transport != nil {
+				_ = w.run(context.Background())
+			}
+		}

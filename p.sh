@@ -1,3 +1,4 @@
+sed -i '/"time"/a"github.com/metacubex/mihomo/tunnel"' adapter/outboundgroup/groupbase.go
 sed -i 's/func (gb \*GroupBase) GetProxies(touch bool) \[\]C.Proxy {/func (gb *GroupBase) _GetProxies(touch bool) []C.Proxy {/' adapter/outboundgroup/groupbase.go
 
 
@@ -45,24 +46,34 @@ func (gb *GroupBase) GetProxies(touch bool) (proxies []C.Proxy) {\
 \treturn\
 }' adapter/outboundgroup/groupbase.go
 echo  adapter/outboundgroup/groupbase.go
-sed -i '/	"time"/a\	"sync/atomic"'  adapter/outboundgroup/loadbalance.go
-sed -i '/case "consistent-hashing":/i\
+sed -i '/case "round-robin":/i\
 \ncase "round-robin0":\
 \tstrategyFn = strategyRoundRobin0(option.URL)' adapter/outboundgroup/loadbalance.go
 echo adapter/outboundgroup/loadbalance.go
 
-sed -i '/func strategyConsistentHashing(url string) strategyFn {/i\
+sed -i '/func strategyConsistentHashing/i\
 \
 func strategyRoundRobin0(url string) strategyFn {\
-\tidx := &atomic.Uint32{}\
+\tidx := 0\
+\tidlock := sync.Mutex{}\
 \treturn func(proxies []C.Proxy, metadata *C.Metadata, touch bool) (proxy C.Proxy) {\
-\t\tproxy = proxies[idx.Add(1) % (uint32)(len(proxies))]\
+\tid:=0\
+\tl:=len(proxies)\
+\tidlock.Lock()\
+\tid = idx + 1\
+\tif id < l{\
+\tidx = id\
+\t}else{\
+\tidx = 0\
+\tid = 0\
+\t}\
+\tidlock.Unlock()\
+\t\tproxy = proxies[id]\
 \t\treturn proxy\
 \t}\
 }' adapter/outboundgroup/loadbalance.go
 echo adapter/outboundgroup/loadbalance.go
 
-sed -i '/	"time"/a\	"sync"'  adapter/provider/provider.go
 sed -i '/type proxySetProvider struct {/a\
 \tmutex    sync.Mutex\
 \tfollower map[chan <- struct{}]struct{}' adapter/provider/provider.go
@@ -114,3 +125,4 @@ sed -i '/\treturn ips, port, nil/i\
 	ips[0], ips[j] = ips[j], ips[0]  }\
 ' component/dialer/dialer.go
 echo component/dialer/dialer.go
+
